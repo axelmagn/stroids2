@@ -1,0 +1,5 @@
+<TextureAtlas imagePath="simpleSpace_sheet.png">
+	<SubTexture name="effect_purple.png" x="156" y="32" width="32" height="64"/>
+	<SubTexture name="enemy_A.png" x="0" y="420" width="48" height="48"/>
+	<SubTexture name="icon_crossLarge.png" x="100" y="236" width="48" height="48"/>
+</TextureAtlas>
