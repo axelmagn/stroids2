@@ -1,5 +1,6 @@
 mod actions;
 mod audio;
+mod kenney_texture_atlas;
 mod loading;
 mod menu;
 mod player;
