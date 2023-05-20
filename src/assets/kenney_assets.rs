@@ -1,27 +1,39 @@
 //! Module for loading assets provided by kenney
 
-use std::str::from_utf8;
+use std::io::{Error as IOError, ErrorKind as IOErrorKind};
+use std::{collections::HashMap, str::from_utf8};
 
+use bevy::render::render_resource::Texture;
+use bevy::render::texture::{self, CompressedImageFormats, ImageType};
+use bevy::utils::default;
 use bevy::{
-    asset::{AssetLoader, LoadedAsset},
-    prelude::{AddAsset, Plugin, Rect},
+    asset::{AssetLoader, Error as AssetError, LoadedAsset},
+    prelude::{AddAsset, Handle, Image, Plugin, Rect},
     reflect::TypeUuid,
+    sprite::TextureAtlas,
+    utils::BoxedFuture,
 };
 use serde::Deserialize;
 
-/// A texture atlas corresponding to an image file located at `image_path`
-/// Note: this name overlaps with bevy::TextureAtlas
-#[derive(Debug, Deserialize, TypeUuid)]
+/// A texture atlas with named sprites
+#[derive(Debug, Clone, TypeUuid)]
+#[uuid = "a21062d1-791a-4dc8-83e2-7521b6144c11"]
+pub struct KeyedTextureAtlas {
+    pub keys: HashMap<String, usize>,
+    pub atlas: Handle<TextureAtlas>,
+}
+
+#[derive(Debug, Deserialize, Clone, TypeUuid)]
 #[uuid = "10ee7006-ad73-4111-bf4f-4a1ccf0e6996"]
 #[serde(rename = "TextureAtlas")]
 #[serde(rename_all = "camelCase")]
-pub struct TextureAtlasXml {
+pub struct KeyedTextureAtlasConfig {
     pub image_path: String,
     #[serde(rename = "$value")]
     pub sub_textures: Vec<SubTexture>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubTexture {
     pub name: String,
@@ -37,7 +49,58 @@ impl SubTexture {
     }
 }
 
-/// Asset loader for TextureAtlas
+#[derive(Default)]
+pub struct KeyedTextureAtlasLoader;
+
+impl AssetLoader for KeyedTextureAtlasLoader {
+    fn load<'a>(
+        &'a self,
+        bytes: &'a [u8],
+        load_context: &'a mut bevy::asset::LoadContext,
+    ) -> BoxedFuture<'a, Result<(), AssetError>> {
+        Box::pin(async move {
+            // parse xml
+            let xml_content = from_utf8(bytes)?;
+            let config = serde_xml_rs::from_str::<KeyedTextureAtlasConfig>(xml_content)?;
+            let config_handle =
+                load_context.set_labeled_asset("config", LoadedAsset::new(config.clone()));
+
+            // load related img
+            let base_dir = load_context.path().parent().ok_or(IOError::new(
+                IOErrorKind::NotFound,
+                String::from("could not find base_dir"),
+            ))?;
+            let img_path = base_dir.join(config.image_path);
+            let img_bytes = load_context.read_asset_bytes(img_path.clone()).await?;
+            let ext = img_path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .ok_or(IOError::new(
+                    IOErrorKind::NotFound,
+                    String::from("could not find image file extension"),
+                ))?;
+
+            let img = Image::from_buffer(
+                &img_bytes,
+                ImageType::Extension(ext),
+                CompressedImageFormats::default(),
+                true,
+            )?;
+            let img_size = img.size();
+            let img_handle = load_context.set_labeled_asset("image", LoadedAsset::new(img));
+
+            // create texture atlas
+            let atlas = TextureAtlas::new_empty(img_handle, img_size);
+
+            Ok(())
+        })
+    }
+
+    fn extensions(&self) -> &[&str] {
+        &["xml"]
+    }
+}
+
 #[derive(Default)]
 pub struct TextureAtlasXmlLoader;
 
@@ -49,7 +112,7 @@ impl AssetLoader for TextureAtlasXmlLoader {
     ) -> bevy::utils::BoxedFuture<'a, Result<(), bevy::asset::Error>> {
         Box::pin(async move {
             let content = from_utf8(bytes)?;
-            let texture_atlas = serde_xml_rs::from_str::<TextureAtlasXml>(content)?;
+            let texture_atlas = serde_xml_rs::from_str::<KeyedTextureAtlasConfig>(content)?;
             load_context.set_default_asset(LoadedAsset::new(texture_atlas));
             Ok(())
         })
@@ -68,7 +131,7 @@ mod tests {
 
     #[test]
     fn test_texture_atlas_parse() {
-        let texture_atlas: TextureAtlasXml =
+        let texture_atlas: KeyedTextureAtlasConfig =
             serde_xml_rs::from_str(TEST_TEXTURE_ATLAS_STR).unwrap();
         assert_eq!(texture_atlas.image_path, "simpleSpace_sheet.png");
 
