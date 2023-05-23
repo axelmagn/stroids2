@@ -1,4 +1,4 @@
-use crate::GameState;
+use crate::{assets::keyed_texture_atlas::KeyedTextureAtlas, GameState};
 use bevy::prelude::*;
 use bevy_asset_loader::prelude::*;
 use bevy_kira_audio::AudioSource;
@@ -38,4 +38,6 @@ pub struct AudioAssets {
 pub struct TextureAssets {
     #[asset(path = "textures/bevy.png")]
     pub texture_bevy: Handle<Image>,
+    #[asset(path = "textures/simpleSpace_sheet.xml")]
+    pub atlas_space: Handle<KeyedTextureAtlas>,
 }

@@ -1,4 +1,5 @@
 use crate::actions::Actions;
+use crate::assets::keyed_texture_atlas::KeyedTextureAtlas;
 use crate::loading::TextureAssets;
 use crate::GameState;
 use bevy::prelude::*;
@@ -17,14 +18,21 @@ impl Plugin for PlayerPlugin {
     }
 }
 
-fn spawn_player(mut commands: Commands, textures: Res<TextureAssets>) {
-    commands
-        .spawn(SpriteBundle {
-            texture: textures.texture_bevy.clone(),
+fn spawn_player(
+    mut commands: Commands,
+    textures: Res<TextureAssets>,
+    keyed_atlases: Res<Assets<KeyedTextureAtlas>>,
+) {
+    let keyed_atlas = keyed_atlases.get(&textures.atlas_space).unwrap();
+    commands.spawn((
+        SpriteSheetBundle {
+            texture_atlas: keyed_atlas.atlas.clone(),
+            sprite: keyed_atlas.get_sprite("ship_A.png").unwrap(),
             transform: Transform::from_translation(Vec3::new(0., 0., 1.)),
             ..Default::default()
-        })
-        .insert(Player);
+        },
+        Player,
+    ));
 }
 
 fn move_player(
